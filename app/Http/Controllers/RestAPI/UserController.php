@@ -1,0 +1,105 @@
+<?php
+
+namespace App\Http\Controllers\RestAPI;
+
+use App\Http\Controllers\Auth\ApiFormater;
+use App\Http\Controllers\Controller;
+use App\Http\Resources\UserListResource;
+use App\Models\user_listData;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
+
+class UserController extends Controller
+{
+    public function index()
+    {
+        $userdata = user_listData::all();
+
+        return UserListResource::collection($userdata);
+    }
+
+    public function checkLogin()
+    {
+        $userdata = user_listData::find(1);
+
+        return new UserListResource($userdata);
+    }
+
+    public function updatePhotoProfile(Request $request)
+    {
+        $validateData = $request->validate([
+            'id_user' => 'required',
+            'title' => 'required',
+            'image' => 'image'
+        ]);
+
+        if ($request->file('image')) {
+            $destinationPath = public_path('img-user');
+            $foto = $request->file('image');
+            $foto->move($destinationPath, $validateData['title'] . '.jpg');
+            $resutl = user_listData::where('id', $validateData['id_user'])->update(['foto_user' => $validateData['title']]);
+            if ($resutl) {
+                return json_encode(['kondisi' => 'real', 'path' => $validateData['image'], 'title' => $validateData['title']]);
+            }
+        }
+        return json_encode(['kondisi' => 'fake']);
+    }
+
+    public function updatePassword(Request $request)
+    {
+        $request->validate([
+            'id' => 'required',
+            'password_lama' => 'required',
+            'password_baru' => 'required'
+        ]);
+
+        $ambilPasswordLama = DB::table('user_list_data')->where('id', '=', $request->id)->first();
+
+        if (Hash::check($request->password_lama, $ambilPasswordLama->password)) {
+            $encryptedPassword = Hash::make($request->password_baru);
+            DB::table('user_list_data')->where('id', '=', $request->id)->update([
+                'password' => $encryptedPassword
+            ]);
+            $data = [
+                'status' => 'berhasil',
+                'kode' => '200'
+            ];
+            return json_encode($data);
+        } else {
+            $data = [
+                'status' => 'gagal',
+                'kode' => '400'
+            ];
+            return json_encode($data);
+        }
+    }
+
+
+
+
+    public function getDataProfile(Request $request)
+    {
+        $request->validate(['id' => 'required']);
+
+        $getData = DB::table('user_list_data')->select('user_list_data.namaLengkap', 'user_list_data.email', 'user_list_data.noHp', 'user_list_data.foto_user')->where('user_list_data.id', '=', $request->id)->first();
+
+        if ($getData != null) {
+            return response()->json(['status' => 'berhasil', 'kode' => '200']);
+        } else {
+            return response()->json(['status' => 'gagal', 'kode' => '400']);
+        }
+    }
+
+    public function GetData($id)
+    {
+        $contact = user_listData::select('namaLengkap', 'email', 'noHp', 'email', 'foto_user')->find($id);
+
+        if (!$contact) {
+            return response()->json(['message' => 'Kontak tidak ditemukan'], 404);
+        }
+
+        return response()->json($contact);
+    }
+}
